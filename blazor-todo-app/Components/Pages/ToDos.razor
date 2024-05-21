@@ -1,0 +1,91 @@
+﻿@page "/todos"
+@rendermode InteractiveServer
+
+<PageTitle>To-Dos</PageTitle>
+
+<h3>To-Dos</h3>
+
+<EditForm Model="task" OnValidSubmit="AddTask" class="form-inline" FormName="taskForm">
+    <input type="text" @bind-value="task.TaskName" class="form-control mx-2 my-2" placeholder="Enter task" />
+    <button class="btn btn-outline-primary mx-2">Add Task</button>
+</EditForm>
+
+<div class="progress-bar my-2 mx-2" role="progressbar" style="width:@(PercentageCompleted)%" aria-valuemax="100" aria-valuemin="0">
+    @(PercentageCompleted)%
+</div>
+
+<ul class="list-group my-2">
+    @foreach (var item in taskList)
+    {
+        <li class="list-group-item @(item.IsCompleted ? "list-group-item-success" : "list-group-item-secondary") mx-1"
+            @onclick="(() => ToggleTaskCompletion(item))"
+            @ondblclick="(() => DeleteTask(item))">
+            @if (item.IsCompleted)
+            {
+                <del>@item.TaskName</del>
+            }
+            else
+            {
+                @item.TaskName
+            }
+        </li>
+    }
+</ul>
+
+@code {
+    [Inject]
+    private ILocalStorageService LocalStorage { get; set; }
+
+    protected List<TaskModel> taskList = new List<TaskModel>();
+    protected TaskModel task = new TaskModel();
+    private bool isInitialized = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            taskList = await LocalStorage.GetItemAsync<List<TaskModel>>("taskList") ?? new List<TaskModel>();
+            isInitialized = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task AddTask()
+    {
+        if (string.IsNullOrWhiteSpace(task.TaskName))
+        {
+            return;
+        }
+
+        var newTask = new TaskModel { TaskName = task.TaskName, IsCompleted = false };
+        taskList.Add(newTask);
+        task.TaskName = string.Empty;
+
+        await SaveTasks();
+    }
+
+    private async Task SaveTasks()
+    {
+        await LocalStorage.SetItemAsync("taskList", taskList);
+    }
+
+    private async Task ToggleTaskCompletion(TaskModel task)
+    {
+        task.IsCompleted = !task.IsCompleted;
+        await SaveTasks();
+    }
+
+    private async Task DeleteTask(TaskModel task)
+    {
+        taskList.Remove(task);
+        await SaveTasks();
+    }
+
+    private int PercentageCompleted
+    {
+        get
+        {
+            return taskList.Count > 0 ? (taskList.Count(x => x.IsCompleted) * 100 / taskList.Count) : 0;
+        }
+    }
+}
